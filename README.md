@@ -12,7 +12,7 @@ This project processes videos by extracting audio, detecting speech segments, tr
 
 1. **Clone the repository:**
    ```bash
-   git clone <repository-url>
+   git clone git@github.com:justinkahrs/video-supercut.git
    ```
 2. **Navigate into the project directory:**
    ```bash
