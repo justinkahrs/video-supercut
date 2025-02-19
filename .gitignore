@@ -1,0 +1,5 @@
+/raw/
+/tmp/
+/edited_videos/
+.env
+__pycache__/
