@@ -2,4 +2,6 @@ pydub==0.25.1
 moviepy==1.0.3
 ffmpeg-python==0.2.0
 python-dotenv==1.0.0
+git+https://github.com/openai/whisper.git#egg=openai-whisper
 audioop-lts
+imageio-ffmpeg==0.4.7

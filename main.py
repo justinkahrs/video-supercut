@@ -2,6 +2,7 @@
 
 import os
 import time
+import tempfile
 import subprocess
 import json
 import glob
@@ -33,7 +34,7 @@ def process_video(video_file: str) -> str:
     Returns the path to the extracted .wav file.
     """
     base_name = os.path.basename(os.path.splitext(video_file)[0])
-    audio_output = os.path.join("/tmp", f"{base_name}_temp_audio.wav")
+    audio_output = os.path.join(tempfile.gettempdir(), f"{base_name}_temp_audio.wav")
 
     # Use ffmpeg to extract audio
     (
@@ -100,7 +101,7 @@ def transcribe_segments(audio_path: str, segments):
     for (start, end) in segments:
         # Export segment to a temporary file
         segment_audio = audio[start:end]
-        segment_path = os.path.join("/tmp", "temp_segment.wav")
+        segment_path = os.path.join(tempfile.gettempdir(), "temp_segment.wav")
         segment_audio.export(segment_path, format="wav")
 
         # Transcribe with Whisper
@@ -150,7 +151,7 @@ def generate_cleaned_transcript(filtered_transcriptions, segments):
         })
 
     # Example: save a JSON transcript (optional)
-    transcript_path = os.path.join("/tmp", "cleaned_transcript.json")
+    transcript_path = os.path.join(tempfile.gettempdir(), "cleaned_transcript.json")
     with open(transcript_path, "w", encoding="utf-8") as f:
         json.dump(cleaned, f, ensure_ascii=False, indent=2)
 
@@ -215,6 +216,16 @@ def save_output(final_clip, output_folder: str, original_video: str):
 
 
 def main():
+    import shutil
+    if not shutil.which("ffmpeg"):
+        try:
+            import imageio_ffmpeg
+            ffmpeg_path = imageio_ffmpeg.get_ffmpeg_exe()
+            os.environ["FFMPEG_BINARY"] = ffmpeg_path
+            print("ffmpeg not found in PATH, using imageio-ffmpeg at", ffmpeg_path)
+        except ImportError:
+            print("ffmpeg not found and imageio-ffmpeg not installed. Please install ffmpeg.")
+            return
     # Create output folder if it doesn't exist
     Path(EDITED_FOLDER).mkdir(parents=True, exist_ok=True)
 
