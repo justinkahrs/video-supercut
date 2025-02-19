@@ -28,6 +28,14 @@ This project processes videos by extracting audio, detecting speech segments, tr
    pip install -r requirements.txt
    ```
 
+## Configuration Parameters
+
+- `SILENCE_THRESHOLD`: The threshold in decibels (dBFS) used to determine silence in the audio track. Adjust this value based on your audio's background noise level.
+- `MIN_SPEECH_DURATION`: The minimum duration (in milliseconds) that a segment must last to be considered speech.
+- `MARGIN_DURATION`: An extra margin (in milliseconds) added before and after detected speech segments to ensure that speech is fully captured.
+- `RAW_FOLDER`: The directory where raw `.mp4` video files should be placed.
+- `EDITED_FOLDER`: The directory where the final edited videos will be saved.
+
 ## Running the Script
 
 1. **Add Video Files:**
