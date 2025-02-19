@@ -18,7 +18,12 @@ This project processes videos by extracting audio, detecting speech segments, tr
    ```bash
    cd video-supercut
    ```
-3. **Install dependencies:**
+3. **Create and activate a virtual environment:**
+   ```bash
+   python3 -m venv venv
+   source ./venv/bin/activate
+   ```
+4. **Install dependencies:**
    ```bash
    pip install -r requirements.txt
    ```
