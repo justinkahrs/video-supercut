@@ -30,7 +30,7 @@ This project processes videos by extracting audio, detecting speech segments, tr
 
 ## Configuration Parameters
 
-- `SILENCE_THRESHOLD`: The threshold in decibels (dBFS) used to determine silence in the audio track. Adjust this value based on your audio's background noise level.
+- `NOISE`: The noise level environment variable (`low`, `medium`, or `high`). The script measures the audio's average RMS in dBFS and adjusts the silence threshold accordingly.
 - `MIN_SPEECH_DURATION`: The minimum duration (in milliseconds) that a segment must last to be considered speech.
 - `MARGIN_DURATION`: An extra margin (in milliseconds) added before and after detected speech segments to ensure that speech is fully captured.
 - `RAW_FOLDER`: The directory where raw `.mp4` video files should be placed.

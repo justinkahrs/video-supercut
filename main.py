@@ -20,12 +20,19 @@ import whisper
 from dotenv import load_dotenv
 load_dotenv()
 
+NOISE_SETTING = os.environ.get("NOISE", "medium")
+NOISE_OFFSET_MAP = {
+    "low": 5,
+    "medium": 10,
+    "high": 15
+}
+
 # Global config (You can adjust these or move them to .env)
-SILENCE_THRESHOLD = -70  # in dBFS, tune for your audio
 MIN_SPEECH_DURATION = 500  # in ms
 MARGIN_DURATION = 200  # in ms
 RAW_FOLDER = "raw"
 EDITED_FOLDER = "edited_videos"
+
 
 def format_time(seconds: float) -> str:
     hours = int(seconds // 3600)
@@ -61,13 +68,14 @@ def detect_speech_segments(audio_path: str):
     """
     audio = AudioSegment.from_wav(audio_path)
     # Invert logic: detect silent chunks, then invert to get speech segments
+    overall_dBFS = audio.dBFS
+    offset = NOISE_OFFSET_MAP.get(NOISE_SETTING, 10)
+    computed_threshold = overall_dBFS - offset
     silent_ranges = silence.detect_silence(
         audio,
         min_silence_len=MIN_SPEECH_DURATION,
-        silence_thresh=SILENCE_THRESHOLD
+        silence_thresh=computed_threshold
     )
-    # silent_ranges are tuples of (start_ms, end_ms) for silence
-    # We'll invert these to find speech. A simple approach:
     if not silent_ranges:
         # If no silence detected, assume entire file is speech
         return [(0, len(audio))]
@@ -129,12 +137,11 @@ def remove_duplicate_phrases(transcriptions):
     """
     filtered = []
     seen_phrases = set()
-    # We'll invert the iteration to keep the last occurrence
+    # We'll iterate backward to keep the last occurrence
     for i in range(len(transcriptions) - 1, -1, -1):
         if transcriptions[i] not in seen_phrases:
             seen_phrases.add(transcriptions[i])
             filtered.append(transcriptions[i])
-    # Reverse again to restore correct chronological order
     filtered.reverse()
     return filtered
 
@@ -146,8 +153,6 @@ def generate_cleaned_transcript(filtered_transcriptions, segments):
     Also optionally save a JSON log if needed.
     """
     cleaned = []
-    # For simplicity, assume the length of filtered_transcriptions matches segments
-    # or that you want to pair them in order
     for (segment, text) in zip(segments, filtered_transcriptions):
         start_ms, end_ms = segment
         cleaned.append({
@@ -169,10 +174,8 @@ def compile_final_video(video_file: str, cleaned_transcript):
     Reconstruct the final video by cutting silent/unwanted segments using moviepy.
     Returns the final video clip object (in memory) ready for export.
     """
-    # Load the original video
     clip = mp.VideoFileClip(video_file)
 
-    # Build subclips from the cleaned transcript
     subclips = []
     for entry in cleaned_transcript:
         start_s = entry["start_ms"] / 1000.0
@@ -221,9 +224,56 @@ def save_output(final_clip, output_folder: str, original_video: str):
         print(f"Removed intermediate file: {edited_output_path}")
 
 
+def process_single_video(video_file):
+    """
+    Process a single video through the entire pipeline:
+    1) Extract audio
+    2) Detect speech segments
+    3) Transcribe
+    4) Remove duplicates
+    5) Generate cleaned transcript
+    6) Compile final video
+    7) Save final output
+    """
+    import moviepy.editor as mp  # re-import inside function for subprocess usage
+    start_time = time.time()
+    print(f"Processing video: {video_file}")
+
+    audio_path = process_video(video_file)
+    segments = detect_speech_segments(audio_path)
+    transcriptions = transcribe_segments(audio_path, segments)
+    filtered_transcriptions = remove_duplicate_phrases(transcriptions)
+    cleaned_transcript = generate_cleaned_transcript(filtered_transcriptions, segments)
+    final_clip = compile_final_video(video_file, cleaned_transcript)
+    save_output(final_clip, EDITED_FOLDER, video_file)
+
+    end_time = time.time()
+    processing_time = end_time - start_time
+
+    # Compute original & final duration
+    original_clip = mp.VideoFileClip(video_file)
+    original_duration = original_clip.duration
+    original_clip.close()
+    final_duration = final_clip.duration if final_clip else 0
+    time_cut = original_duration - final_duration
+
+    print(f"Processing time: {format_time(processing_time)}")
+    print(f"Original runtime: {format_time(original_duration)}")
+    print(f"Final runtime: {format_time(final_duration)}")
+    print(f"Total time cut: {format_time(time_cut)}")
+
+    # Clean up temp audio
+    if os.path.exists(audio_path):
+        os.remove(audio_path)
+        print(f"Removed temporary audio file: {audio_path}")
+
+
 def main():
     import shutil
+    from concurrent.futures import ProcessPoolExecutor
+
     if not shutil.which("ffmpeg"):
+        # If ffmpeg isn't found, attempt to use imageio-ffmpeg
         try:
             import imageio_ffmpeg
             ffmpeg_path = imageio_ffmpeg.get_ffmpeg_exe()
@@ -232,45 +282,18 @@ def main():
         except ImportError:
             print("ffmpeg not found and imageio-ffmpeg not installed. Please install ffmpeg.")
             return
-    # Create output folder if it doesn't exist
+
     Path(EDITED_FOLDER).mkdir(parents=True, exist_ok=True)
 
+    # Gather all relevant video files
     video_files = glob.glob(os.path.join(RAW_FOLDER, "*.mp4")) + glob.glob(os.path.join(RAW_FOLDER, "*.mkv"))
     if not video_files:
         print(f"No .mp4 or .mkv files found in '{RAW_FOLDER}' folder.")
         return
 
-    for video_file in video_files:
-        print(f"Processing video: {video_file}")
-        start_time = time.time()
-        audio_path = process_video(video_file)
-        segments = detect_speech_segments(audio_path)
-        transcriptions = transcribe_segments(audio_path, segments)
-
-        filtered_transcriptions = remove_duplicate_phrases(transcriptions)
-        cleaned_transcript = generate_cleaned_transcript(filtered_transcriptions, segments)
-
-        final_clip = compile_final_video(video_file, cleaned_transcript)
-        save_output(final_clip, EDITED_FOLDER, video_file)
-        end_time = time.time()
-        processing_time = end_time - start_time
-        original_clip = mp.VideoFileClip(video_file)
-        original_duration = original_clip.duration
-        original_clip.close()
-        if final_clip:
-            final_duration = final_clip.duration
-        else:
-            final_duration = 0
-        time_cut = original_duration - final_duration
-        print(f"Processing time: {format_time(processing_time)}")
-        print(f"Original runtime: {format_time(original_duration)}")
-        print(f"Final runtime: {format_time(final_duration)}")
-        print(f"Total time cut: {format_time(time_cut)}")
-
-        # Clean up temp audio if desired
-        if os.path.exists(audio_path):
-            os.remove(audio_path)
-            print(f"Removed temporary audio file: {audio_path}")
+    # Process files in parallel
+    with ProcessPoolExecutor() as executor:
+        executor.map(process_single_video, video_files)
 
 
 if __name__ == "__main__":
