@@ -27,6 +27,12 @@ MARGIN_DURATION = 200  # in ms
 RAW_FOLDER = "raw"
 EDITED_FOLDER = "edited_videos"
 
+def format_time(seconds: float) -> str:
+    hours = int(seconds // 3600)
+    minutes = int((seconds % 3600) // 60)
+    secs = seconds % 60
+    return f"{hours}h {minutes}m {secs:.2f}s"
+
 
 def process_video(video_file: str) -> str:
     """
@@ -229,9 +235,9 @@ def main():
     # Create output folder if it doesn't exist
     Path(EDITED_FOLDER).mkdir(parents=True, exist_ok=True)
 
-    video_files = glob.glob(os.path.join(RAW_FOLDER, "*.mp4"))
+    video_files = glob.glob(os.path.join(RAW_FOLDER, "*.mp4")) + glob.glob(os.path.join(RAW_FOLDER, "*.mkv"))
     if not video_files:
-        print(f"No .mp4 files found in '{RAW_FOLDER}' folder.")
+        print(f"No .mp4 or .mkv files found in '{RAW_FOLDER}' folder.")
         return
 
     for video_file in video_files:
@@ -256,10 +262,10 @@ def main():
         else:
             final_duration = 0
         time_cut = original_duration - final_duration
-        print(f"Processing time: {processing_time:.2f} seconds")
-        print(f"Original runtime: {original_duration:.2f} seconds")
-        print(f"Final runtime: {final_duration:.2f} seconds")
-        print(f"Total time cut: {time_cut:.2f} seconds")
+        print(f"Processing time: {format_time(processing_time)}")
+        print(f"Original runtime: {format_time(original_duration)}")
+        print(f"Final runtime: {format_time(final_duration)}")
+        print(f"Total time cut: {format_time(time_cut)}")
 
         # Clean up temp audio if desired
         if os.path.exists(audio_path):
